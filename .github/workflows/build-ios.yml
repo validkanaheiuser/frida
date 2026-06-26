@@ -75,6 +75,9 @@ jobs:
             fi
           done
 
+      - name: List installed files
+        run: find "$FRIDA_PREFIX" -type f | sort
+
       - name: Install dpkg
         run: brew install dpkg
 
@@ -91,7 +94,9 @@ jobs:
           mkdir -p "$PKG_DIR/var/jb/usr/lib/frida-1.0"
           mkdir -p "$PKG_DIR/var/jb/Library/LaunchDaemons"
 
-          cp "$INST/usr/sbin/frida-server" "$PKG_DIR/var/jb/usr/sbin/"
+          FRIDA_SERVER=$(find "$INST" -name "frida-server" -type f | head -1)
+          echo "Found frida-server at: $FRIDA_SERVER"
+          cp "$FRIDA_SERVER" "$PKG_DIR/var/jb/usr/sbin/"
           cp "$INST/usr/lib/frida-1.0/frida-agent.dylib" "$PKG_DIR/var/jb/usr/lib/frida-1.0/"
 
           printf '%s\n' \
