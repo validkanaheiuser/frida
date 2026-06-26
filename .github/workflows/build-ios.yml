@@ -27,9 +27,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch upstream tags for versioning
-        run: git fetch https://github.com/frida/frida.git --tags
-
       - name: Init releng
         run: |
           git submodule update --init --depth 1 releng
@@ -54,20 +51,22 @@ jobs:
 
       - name: Set up environment
         run: |
+          git tag 17.0.0 HEAD 2>/dev/null || true
           echo "FRIDA_PREFIX=$RUNNER_WORKSPACE/dist" >> $GITHUB_ENV
           echo "FRIDA_VERSION=$(python3 releng/frida_version.py)" >> $GITHUB_ENV
           echo "IOS_CERTID=-" >> $GITHUB_ENV
 
       - name: Configure
-        run: >-
-          ./configure
-          --prefix=/var/jb/usr
-          --host=ios-${{ matrix.arch }}
-          --enable-server
-          --disable-frida-tools
-          --
-          -Dfrida-core:compiler_backend=${{ matrix.arch != 'arm64e' && 'enabled' || 'disabled' }}
-          -Dfrida-core:assets=installed
+        run: |
+          ./configure \
+            --prefix=/var/jb/usr \
+            --host=ios-${{ matrix.arch }} \
+            --enable-server \
+            --disable-frida-tools \
+            -- \
+            -Dfrida-core:compiler_backend=${{ matrix.arch != 'arm64e' && 'enabled' || 'disabled' }} \
+            -Dfrida-core:assets=installed \
+          || { cat build/meson-logs/meson-log.txt; exit 1; }
 
       - name: Compile
         run: make
