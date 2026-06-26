@@ -3,7 +3,13 @@ name: Build iOS
 on:
   push:
     branches: [main]
+    tags: ['v*']
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Tạo release với tag này (vd: v16.5.0-custom), bỏ trống để skip'
+        required: false
+        default: ''
 
 env:
   FRIDA_COMPILER_MOD: subprojects/frida-core/src/compiler/go.mod
@@ -65,6 +71,37 @@ jobs:
       - name: Install
         run: DESTDIR="$FRIDA_PREFIX" make install
 
+      - name: Install dpkg
+        run: brew install dpkg
+
+      - name: Package .deb
+        run: |
+          DEB_ARCH="iphoneos-arm64"
+          [ "${{ matrix.arch }}" = "arm64e" ] && DEB_ARCH="iphoneos-arm64e"
+
+          PKG_DIR="$RUNNER_WORKSPACE/pkg"
+          mkdir -p "$PKG_DIR/DEBIAN"
+          mkdir -p "$PKG_DIR/usr/bin"
+          mkdir -p "$PKG_DIR/usr/lib/frida-1.0"
+
+          cp "$FRIDA_PREFIX/usr/bin/frida-server" "$PKG_DIR/usr/bin/"
+          cp -r "$FRIDA_PREFIX/usr/lib/frida-1.0/." "$PKG_DIR/usr/lib/frida-1.0/"
+
+          printf 'Package: re.frida.server\nName: Frida Server\nVersion: %s\nArchitecture: %s\nDescription: Inject JavaScript to explore native apps on iOS\nMaintainer: validkanaheiuser\nSection: Development\nDepends: firmware (>= 16.0)\n' \
+            "$FRIDA_VERSION" "$DEB_ARCH" > "$PKG_DIR/DEBIAN/control"
+
+          printf '#!/bin/sh\nchmod 755 /usr/bin/frida-server\n' > "$PKG_DIR/DEBIAN/postinst"
+          chmod 755 "$PKG_DIR/DEBIAN/postinst"
+
+          dpkg-deb --root-owner-group -b "$PKG_DIR" \
+            "$RUNNER_WORKSPACE/frida-server_${FRIDA_VERSION}_${DEB_ARCH}.deb"
+
+      - name: Upload .deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-ios-${{ matrix.arch }}
+          path: ${{ runner.workspace }}/frida-server_*.deb
+
       - name: Upload frida-server
         uses: actions/upload-artifact@v4
         with:
@@ -82,3 +119,44 @@ jobs:
         with:
           name: frida-inject-ios-${{ matrix.arch }}
           path: ${{ env.FRIDA_PREFIX }}/usr/bin/frida-inject
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Determine release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "value=${{ inputs.release_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "value=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download .deb artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: deb-ios-*
+          merge-multiple: true
+          path: release-files/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.value }}
+          name: "Frida iOS ${{ steps.tag.outputs.value }}"
+          body: |
+            Custom Frida iOS build — arm64 + arm64e
+
+            **Thay đổi so với upstream:**
+            - Control port: `31742`
+            - Cluster port: `32519`
+            - Default auth token được bật sẵn
+
+            **Cài đặt:** sideload file `.deb` qua Filza, Sileo, hoặc Cydia.
+          files: release-files/*.deb
+          draft: false
+          prerelease: false
