@@ -1,0 +1,84 @@
+name: Build iOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  FRIDA_COMPILER_MOD: subprojects/frida-core/src/compiler/go.mod
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        arch: [arm64, arm64e]
+      fail-fast: false
+    runs-on: macos-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Init releng
+        run: |
+          git submodule update --init --depth 1 releng
+          cd releng && git submodule update --init --depth 1
+
+      - name: Grab frida-core
+        run: python3 tools/ensure-submodules.py frida-core
+
+      - name: Install Go toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ env.FRIDA_COMPILER_MOD }}
+          cache-dependency-path: ${{ env.FRIDA_COMPILER_MOD }}
+
+      - name: Install Python dependencies
+        run: pip install setuptools
+
+      - name: Set up environment
+        run: |
+          echo "FRIDA_PREFIX=$RUNNER_WORKSPACE/dist" >> $GITHUB_ENV
+          echo "FRIDA_VERSION=$(python3 releng/frida_version.py)" >> $GITHUB_ENV
+          echo "IOS_CERTID=-" >> $GITHUB_ENV
+
+      - name: Configure
+        run: >-
+          ./configure
+          --prefix=/usr
+          --host=ios-${{ matrix.arch }}
+          --enable-server
+          --enable-gadget
+          --enable-inject
+          --enable-portal
+          --
+          -Dfrida-gum:devkits=gum,gumjs
+          -Dfrida-core:compiler_backend=${{ matrix.arch != 'arm64e' && 'enabled' || 'disabled' }}
+          -Dfrida-core:assets=installed
+          -Dfrida-core:devkits=core
+
+      - name: Compile
+        run: make
+
+      - name: Install
+        run: DESTDIR="$FRIDA_PREFIX" make install
+
+      - name: Upload frida-server
+        uses: actions/upload-artifact@v4
+        with:
+          name: frida-server-ios-${{ matrix.arch }}
+          path: ${{ env.FRIDA_PREFIX }}/usr/bin/frida-server
+
+      - name: Upload frida-gadget
+        uses: actions/upload-artifact@v4
+        with:
+          name: frida-gadget-ios-${{ matrix.arch }}
+          path: ${{ env.FRIDA_PREFIX }}/usr/lib/frida-1.0/frida-gadget.dylib
+
+      - name: Upload frida-inject
+        uses: actions/upload-artifact@v4
+        with:
+          name: frida-inject-ios-${{ matrix.arch }}
+          path: ${{ env.FRIDA_PREFIX }}/usr/bin/frida-inject
