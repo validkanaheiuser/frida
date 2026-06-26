@@ -94,24 +94,24 @@ jobs:
           cp "$INST/usr/sbin/frida-server" "$PKG_DIR/var/jb/usr/sbin/"
           cp "$INST/usr/lib/frida-1.0/frida-agent.dylib" "$PKG_DIR/var/jb/usr/lib/frida-1.0/"
 
-          cat > "$PKG_DIR/var/jb/Library/LaunchDaemons/re.frida.server.plist" << 'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>re.frida.server</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/var/jb/usr/sbin/frida-server</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-</dict>
-</plist>
-PLIST
+          printf '%s\n' \
+            '<?xml version="1.0" encoding="UTF-8"?>' \
+            '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+            '<plist version="1.0">' \
+            '<dict>' \
+            '    <key>Label</key>' \
+            '    <string>re.frida.server</string>' \
+            '    <key>ProgramArguments</key>' \
+            '    <array>' \
+            '        <string>/var/jb/usr/sbin/frida-server</string>' \
+            '    </array>' \
+            '    <key>RunAtLoad</key>' \
+            '    <true/>' \
+            '    <key>KeepAlive</key>' \
+            '    <true/>' \
+            '</dict>' \
+            '</plist>' \
+            > "$PKG_DIR/var/jb/Library/LaunchDaemons/re.frida.server.plist"
 
           printf 'Package: re.frida.server\nName: Frida Server\nVersion: %s\nArchitecture: %s\nDescription: Inject JavaScript to explore native apps on iOS\nMaintainer: validkanaheiuser\nSection: Development\nDepends: firmware (>= 16.0)\n' \
             "$FRIDA_VERSION" "$DEB_ARCH" > "$PKG_DIR/DEBIAN/control"
