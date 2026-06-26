@@ -71,8 +71,16 @@ jobs:
       - name: Install
         run: DESTDIR="$FRIDA_PREFIX" make install
 
+      - name: Strip debug symbols
+        run: |
+          find "$FRIDA_PREFIX" -type f | while read f; do
+            if xcrun file "$f" 2>/dev/null | grep -qE "Mach-O|dylib"; then
+              xcrun strip -Sx "$f" 2>/dev/null || true
+            fi
+          done
+
       - name: Install dpkg
-        run: brew install dpkg
+        run: brew install dpkg xz
 
       - name: Package .deb
         run: |
@@ -93,7 +101,7 @@ jobs:
           printf '#!/bin/sh\nchmod 755 /usr/bin/frida-server\n' > "$PKG_DIR/DEBIAN/postinst"
           chmod 755 "$PKG_DIR/DEBIAN/postinst"
 
-          dpkg-deb --root-owner-group -b "$PKG_DIR" \
+          dpkg-deb --root-owner-group -Zxz -z9 -b "$PKG_DIR" \
             "$RUNNER_WORKSPACE/frida-server_${FRIDA_VERSION}_${DEB_ARCH}.deb"
 
       - name: Upload .deb
