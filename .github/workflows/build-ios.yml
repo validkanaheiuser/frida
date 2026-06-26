@@ -44,6 +44,11 @@ jobs:
           go-version-file: ${{ env.FRIDA_COMPILER_MOD }}
           cache-dependency-path: ${{ env.FRIDA_COMPILER_MOD }}
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Install Python dependencies
         run: pip install setuptools
 
