@@ -27,6 +27,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Fetch upstream tags for versioning
+        run: git fetch https://github.com/frida/frida.git --tags
+
       - name: Init releng
         run: |
           git submodule update --init --depth 1 releng
